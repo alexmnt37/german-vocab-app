@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <!--
+    VIEWPORT: width=device-width keeps layout correct on all screens.
+    maximum-scale=1 stops iOS Safari from zooming in on input focus,
+    which would break the layout. user-scalable=no reinforces this.
+  -->
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+
+  <title>Wortschatz</title>
+
+  <!-- ── PWA / iOS meta tags ── -->
+  <!-- Tells iOS Safari this is a full-screen web app when launched from home screen -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <!-- Style the iOS status bar: "black-translucent" overlaps the status bar
+       giving a true edge-to-edge feel. "default" keeps the white bar. -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Wortschatz" />
+
+  <!-- Android / Chrome theme color (matches our header) -->
+  <meta name="theme-color" content="#1a1512" />
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- iOS home-screen icons (Safari ignores manifest icons) -->
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png" />
+  <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png" />
+  <link rel="apple-touch-icon" sizes="120x120" href="icons/icon-120.png" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600&family=Source+Sans+3:wght@300;400;600&display=swap"
+        rel="stylesheet" />
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════
+       HEADER — sticky top bar
+  ══════════════════════════════════════════ -->
+  <header class="app-header">
+    <!-- safe-area-inset-top handled in CSS for the iPhone notch -->
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-de">DE</span>
+        <span class="logo-title">Wortschatz</span>
+      </div>
+      <!-- Live stats (words / mastered / accuracy) filled by JS -->
+      <div class="header-stats" id="headerStats"></div>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════
+       MAIN CONTENT AREA
+       All screens live here, one visible at a time.
+  ══════════════════════════════════════════ -->
+  <div class="app-body">
+
+    <!-- ════════════════════════════════════════
+         LIBRARY SCREEN
+    ════════════════════════════════════════ -->
+    <main id="libraryScreen" class="screen active">
+
+      <!-- SRS stacked progress bar: mastered / learning / new -->
+      <div id="srsProgress" class="srs-progress"></div>
+
+      <!-- Category pills: Nouns / Verbs / Other -->
+      <div class="category-bar">
+        <button class="cat-btn active" data-cat="nouns">
+          Nouns <span class="count" id="countNouns">0</span>
+        </button>
+        <button class="cat-btn" data-cat="verbs">
+          Verbs <span class="count" id="countVerbs">0</span>
+        </button>
+        <button class="cat-btn" data-cat="other">
+          Other <span class="count" id="countOther">0</span>
+        </button>
+      </div>
+
+      <!-- Backup bar: Export / Import -->
+      <div class="backup-bar">
+        <span class="backup-label">Backup</span>
+        <button class="btn-backup" id="btnExport">&#8595; Export</button>
+        <button class="btn-backup" id="btnImport">&#8593; Import</button>
+        <input type="file" id="importFileInput" accept=".json" style="display:none" />
+      </div>
+
+      <!-- Add word toggle + form -->
+      <section class="add-section">
+        <button class="btn-add-toggle" id="btnToggleAdd">+ Add Word</button>
+
+        <div class="add-form hidden" id="addForm">
+          <h3 class="form-title" id="formTitle">Add Noun</h3>
+
+          <div class="form-row">
+            <label>Romanian</label>
+            <input type="text" id="fRomanian" placeholder="e.g. casă"
+                   autocomplete="off" autocorrect="off" spellcheck="false" />
+          </div>
+          <div class="form-row">
+            <label>German</label>
+            <input type="text" id="fGerman" placeholder="e.g. Haus"
+                   autocomplete="off" autocorrect="off" spellcheck="false" />
+          </div>
+
+          <!-- Noun-only: article + plural -->
+          <div class="noun-fields">
+            <div class="form-row">
+              <label>Article</label>
+              <div class="article-btns">
+                <button class="art-btn" data-art="der">der</button>
+                <button class="art-btn" data-art="die">die</button>
+                <button class="art-btn" data-art="das">das</button>
+              </div>
+              <input type="hidden" id="fArticle" />
+            </div>
+            <div class="form-row">
+              <label>Plural</label>
+              <input type="text" id="fPlural" placeholder="e.g. Häuser"
+                     autocomplete="off" spellcheck="false" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label>Difficulty</label>
+            <select id="fDifficulty">
+              <option value="easy">Easy</option>
+              <option value="medium" selected>Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </div>
+
+          <div class="form-actions">
+            <button class="btn-primary" id="btnSaveWord">Save</button>
+            <button class="btn-ghost"   id="btnCancelAdd">Cancel</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Word list: label + filters + cards -->
+      <section class="word-list-section">
+        <div class="list-header">
+          <span class="list-label" id="listLabel">All Nouns</span>
+          <div class="list-controls">
+            <input type="text" class="search-input" id="searchInput" placeholder="Search…" />
+            <select id="filterDifficulty">
+              <option value="">All levels</option>
+              <option value="easy">Easy</option>
+              <option value="medium">Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+            <select id="filterStatus">
+              <option value="">All statuses</option>
+              <option value="new">New</option>
+              <option value="learning">Learning</option>
+              <option value="mastered">Mastered</option>
+            </select>
+          </div>
+        </div>
+        <div id="wordList" class="word-list"></div>
+      </section>
+    </main>
+
+    <!-- ════════════════════════════════════════
+         PRACTICE SCREEN
+    ════════════════════════════════════════ -->
+    <main id="practiceScreen" class="screen">
+
+      <!-- Setup panel: filters + three mode cards -->
+      <div id="practiceSetup" class="practice-setup">
+        <h2 class="setup-title">Practice</h2>
+
+        <div class="setup-options">
+          <div class="setup-group">
+            <label class="setup-group-label">Category</label>
+            <div class="radio-group">
+              <label><input type="radio" name="practiceCat" value="nouns" checked /> Nouns</label>
+              <label><input type="radio" name="practiceCat" value="verbs" /> Verbs</label>
+              <label><input type="radio" name="practiceCat" value="other" /> Other</label>
+              <label><input type="radio" name="practiceCat" value="all"   /> All</label>
+            </div>
+          </div>
+          <div class="setup-group">
+            <label class="setup-group-label">Difficulty</label>
+            <div class="radio-group">
+              <label><input type="radio" name="practiceDiff" value=""       checked /> All</label>
+              <label><input type="radio" name="practiceDiff" value="easy"          /> Easy</label>
+              <label><input type="radio" name="practiceDiff" value="medium"        /> Medium</label>
+              <label><input type="radio" name="practiceDiff" value="hard"          /> Hard</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode cards -->
+        <div class="mode-cards">
+          <div class="mode-card mode-daily">
+            <div class="mode-card-top">
+              <span class="mode-icon">&#9733;</span>
+              <span class="mode-title">Daily Practice</span>
+              <span id="dailyCountBadge" class="daily-badge has-due">…</span>
+            </div>
+            <p class="mode-desc">New words first, then overdue — up to 25 per session.</p>
+            <button class="btn-primary btn-mode" id="btnStartDaily">Start Daily</button>
+          </div>
+
+          <div class="mode-card mode-free">
+            <div class="mode-card-top">
+              <span class="mode-icon">&#9654;</span>
+              <span class="mode-title">Free Practice</span>
+            </div>
+            <p class="mode-desc">Shuffle everything. Wrong answers appear more often.</p>
+            <button class="btn-primary btn-mode" id="btnStartPractice">Start Free</button>
+          </div>
+
+          <div class="mode-card mode-weak">
+            <div class="mode-card-top">
+              <span class="mode-icon">&#9888;</span>
+              <span class="mode-title">Weak Words</span>
+            </div>
+            <p class="mode-desc">Only low-confidence or high-error words.</p>
+            <button class="btn-primary btn-mode" id="btnStartWeak">Start Weak</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── Active practice card ─── -->
+      <div id="practiceCard" class="practice-card hidden">
+
+        <!-- Top bar: mode label + progress -->
+        <div class="practice-top">
+          <span class="session-mode-label" id="sessionModeLabel"></span>
+          <span class="progress-label" id="progressLabel"></span>
+        </div>
+
+        <!-- Thin progress bar -->
+        <div class="progress-bar-wrap">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <!-- Score chips -->
+        <div class="score-row">
+          <span class="score-correct" id="scoreCorrect">&#10003; 0</span>
+          <span class="score-wrong"   id="scoreWrong">&#10007; 0</span>
+          <span class="score-streak"  id="scoreStreak">&#128293; 0</span>
+        </div>
+
+        <!-- Question card -->
+        <div class="question-area">
+          <div class="question-meta-row">
+            <div class="question-meta" id="questionMeta"></div>
+            <span class="word-status-badge" id="wordStatusBadge"></span>
+          </div>
+          <!-- The Romanian prompt — big and clear -->
+          <div class="question-prompt" id="questionPrompt"></div>
+          <div class="question-hint"   id="questionHint"></div>
+        </div>
+
+        <!-- Answer inputs (filled dynamically by JS) -->
+        <div class="answer-area" id="answerArea"></div>
+
+        <!-- Noun feedback: 3 rows (translation / article / plural) -->
+        <div class="noun-feedback hidden" id="nounFeedback">
+          <div class="nf-row" id="nfTranslation"></div>
+          <div class="nf-row" id="nfArticle"></div>
+          <div class="nf-row" id="nfPlural"></div>
+        </div>
+
+        <!-- Verb/other feedback: single strip -->
+        <div class="feedback-area hidden" id="feedbackArea">
+          <div class="feedback-message" id="feedbackMessage"></div>
+          <div class="feedback-correct" id="feedbackCorrect"></div>
+        </div>
+
+        <!-- Bottom actions: Check | Next | Skip -->
+        <div class="practice-actions">
+          <button class="btn-primary btn-check" id="btnCheck">Check</button>
+          <button class="btn-primary btn-next hidden" id="btnNext">Next &#8594;</button>
+          <button class="btn-skip" id="btnSkip">Skip</button>
+        </div>
+      </div>
+
+      <!-- Session summary -->
+      <div id="sessionSummary" class="session-summary hidden">
+        <h2>Done!</h2>
+        <div class="summary-stats">
+          <div class="stat-box">
+            <span class="stat-num" id="sumCorrect">0</span>
+            <span class="stat-lbl">Correct</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-num" id="sumWrong">0</span>
+            <span class="stat-lbl">Wrong</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-num" id="sumAccuracy">0%</span>
+            <span class="stat-lbl">Accuracy</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-num" id="sumMastered">0</span>
+            <span class="stat-lbl">Mastered</span>
+          </div>
+        </div>
+        <div class="summary-message" id="summaryMessage"></div>
+        <div class="summary-actions">
+          <button class="btn-primary" id="btnPracticeAgain">Practice Again</button>
+          <button class="btn-ghost"   id="btnBackToSetup">Change Settings</button>
+        </div>
+      </div>
+    </main>
+
+  </div><!-- /.app-body -->
+
+  <!-- ══════════════════════════════════════════
+       BOTTOM NAVIGATION BAR
+       Fixed at the bottom — the mobile nav pattern.
+  ══════════════════════════════════════════ -->
+  <nav class="bottom-nav">
+    <button class="bnav-btn active" data-tab="library">
+      <span class="bnav-icon">&#128218;</span>
+      <span class="bnav-label">Library</span>
+    </button>
+    <button class="bnav-btn" data-tab="practice">
+      <span class="bnav-icon">&#9654;</span>
+      <span class="bnav-label">Practice</span>
+    </button>
+  </nav>
+
+  <!-- ══════════════════════════════════════════
+       IMPORT MODAL (Replace vs Merge)
+  ══════════════════════════════════════════ -->
+  <div class="modal-overlay hidden" id="importModal">
+    <div class="modal-box">
+      <h3 class="modal-title">Import vocabulary</h3>
+      <p class="modal-body" id="importModalBody"></p>
+      <div class="modal-choices">
+        <button class="modal-btn modal-btn-replace" id="btnImportReplace">
+          <span class="modal-btn-icon">&#8635;</span>
+          <div>
+            <span class="modal-btn-label">Replace</span>
+            <span class="modal-btn-desc">Delete current words, load file only</span>
+          </div>
+        </button>
+        <button class="modal-btn modal-btn-merge" id="btnImportMerge">
+          <span class="modal-btn-icon">&#43;</span>
+          <div>
+            <span class="modal-btn-label">Merge</span>
+            <span class="modal-btn-desc">Keep current words, add new ones</span>
+          </div>
+        </button>
+      </div>
+      <button class="modal-cancel" id="btnImportCancel">Cancel</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
