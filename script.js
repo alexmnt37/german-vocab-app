@@ -702,38 +702,67 @@ function checkNounAnswers() {
   const germanVal   = germanInput?.value.trim() || '';
   const pluralVal   = pluralInput?.value.trim() || '';
 
-  const germanOk  = normalize(germanVal) === normalize(w.german);
-  const articleOk = chosenArt === w.article;
-  const pluralOk  = !w.plural ? true : normalize(pluralVal) === normalize(w.plural);
+  // ── Evaluate each part independently ──
+  // Step 1: translation
+  const translationCorrect = normalize(germanVal) === normalize(w.german);
 
-  if (germanInput) germanInput.classList.add(germanOk  ? 'correct-input' : 'wrong-input');
-  if (pluralInput) pluralInput.classList.add(pluralOk  ? 'correct-input' : 'wrong-input');
+  // Step 2: article
+  const articleCorrect = chosenArt === w.article;
 
+  // Step 3: plural
+  // If the word has no plural form, this step is not applicable → always passes.
+  const pluralCorrect = !w.plural
+    ? true
+    : normalize(pluralVal) === normalize(w.plural);
+
+  // ── The word is ONLY correct if ALL three parts are correct ──
+  // One wrong step = the whole word is wrong.
+  const allCorrect = translationCorrect && articleCorrect && pluralCorrect;
+
+  // ── Colour the text inputs ──
+  if (germanInput) germanInput.classList.add(translationCorrect ? 'correct-input' : 'wrong-input');
+  if (pluralInput) pluralInput.classList.add(pluralCorrect      ? 'correct-input' : 'wrong-input');
+
+  // ── Colour the article buttons ──
   document.querySelectorAll('#articleBtns button').forEach(btn => {
     const art = btn.dataset.art;
-    if (art === w.article && articleOk)  btn.classList.add('art-correct');
-    if (art === chosenArt && !articleOk) btn.classList.add('art-wrong');
-    if (art === w.article && !articleOk) btn.classList.add('art-reveal');
+    if (art === w.article && articleCorrect)  btn.classList.add('art-correct'); // chosen & right
+    if (art === chosenArt && !articleCorrect) btn.classList.add('art-wrong');   // chosen & wrong
+    if (art === w.article && !articleCorrect) btn.classList.add('art-reveal');  // show correct one
     btn.disabled = true;
   });
 
+  // ── Build the three per-field feedback rows ──
   nfTranslation.innerHTML = '';
   nfArticle.innerHTML     = '';
   nfPlural.innerHTML      = '';
 
-  nfTranslation.appendChild(makeFeedbackRow(germanOk,
-    `Noun: ${germanOk ? germanVal : germanVal || '(blank)'}`, w.german));
-  nfArticle.appendChild(makeFeedbackRow(articleOk,
-    `Article: ${chosenArt || '(none selected)'}`, w.article));
+  nfTranslation.appendChild(makeFeedbackRow(
+    translationCorrect,
+    `Noun: ${translationCorrect ? germanVal : germanVal || '(blank)'}`,
+    w.german
+  ));
+  nfArticle.appendChild(makeFeedbackRow(
+    articleCorrect,
+    `Article: ${chosenArt || '(none selected)'}`,
+    w.article
+  ));
   if (w.plural) {
-    nfPlural.appendChild(makeFeedbackRow(pluralOk,
-      `Plural: ${pluralOk ? pluralVal : pluralVal || '(blank)'}`, w.plural));
+    nfPlural.appendChild(makeFeedbackRow(
+      pluralCorrect,
+      `Plural: ${pluralCorrect ? pluralVal : pluralVal || '(blank)'}`,
+      w.plural
+    ));
   } else {
     nfPlural.appendChild(makeFeedbackRow(true, 'Plural: (no plural form)', ''));
   }
 
   nounFeedback.classList.remove('hidden');
-  recordResult(w.id, germanOk && articleOk && pluralOk);
+
+  // ── Record the result once, using the combined verdict ──
+  // Partial credit does NOT exist: if any step was wrong, the word is wrong.
+  recordResult(w.id, allCorrect);
+
   btnNext.classList.remove('hidden');
 }
 
@@ -759,7 +788,10 @@ function checkSimpleAnswer() {
   btnNext.classList.remove('hidden');
 }
 
-// Core result handler — updates session score, SRS fields, and persisted stats
+// Core result handler — updates session score, SRS fields, and persisted stats.
+// IMPORTANT: must be called EXACTLY ONCE per word.
+// For nouns, `correct` must already be the combined verdict (all 3 parts right).
+// For verbs/other, `correct` is the single translation result.
 function recordResult(wordId, correct) {
   if (correct) { session.correct++; session.streak++; }
   else         { session.wrong++;   session.streak = 0; }
